@@ -70,6 +70,7 @@ class VerifyView(discord.ui.View):
 
 
 @bot.tree.command(name="verify", description="Check imong membership")
+@app_commands.checks.cooldown(1, 10.0, key=lambda i: i.user.id)
 async def verify(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     try:
@@ -135,6 +136,7 @@ class SearchView(discord.ui.View):
 
 
 @bot.tree.command(name="search", description="Search products")
+@app_commands.checks.cooldown(1, 10.0, key=lambda i: i.user.id)
 @app_commands.describe(query="Product name, e.g. mouse")
 async def search(interaction: discord.Interaction, query: str):
     await interaction.response.defer()
@@ -154,6 +156,38 @@ async def search(interaction: discord.Interaction, query: str):
         return
     view = SearchView(query, items)
     await interaction.followup.send(embed=view.embed(), view=view)
+
+
+import logging
+log = logging.getLogger("bot")
+
+
+@bot.tree.error
+async def on_app_command_error(interaction, error):
+    if isinstance(error, app_commands.CommandOnCooldown):
+        msg = f"Hulat og {int(error.retry_after) + 1} segundos."
+    elif isinstance(error, app_commands.MissingPermissions):
+        msg = "Admin ra ang pwede ani."
+    else:
+        log.error("Command error: %s", error, exc_info=error)
+        msg = "Naay error. Try again later."
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(msg, ephemeral=True)
+        else:
+            await interaction.response.send_message(msg, ephemeral=True)
+    except Exception:
+        log.warning("Could not send error message")
+
+
+@bot.tree.command(name="stats", description="Admin: bot stats")
+@app_commands.guild_only()
+@app_commands.default_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
+async def stats(interaction: discord.Interaction):
+    ms = round(bot.latency * 1000)
+    text = f"Servers: {len(bot.guilds)}\nLatency: {ms} ms"
+    await interaction.response.send_message(text, ephemeral=True)
 
 
 bot.run(TOKEN)
