@@ -15,3 +15,9 @@ Python Discord bot (discord.py, asyncio, aiohttp) that talks to a REST API.
     python bot.py          (normal run)
 
 mock_api.py is a demo API. In real use, point API_URL to your own web app.
+
+## Screenshots
+
+<img src="screenshots/verify.png" width="300">
+<img src="screenshots/search.png" width="300">
+<img src="screenshots/detail.png" width="300">

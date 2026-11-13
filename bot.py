@@ -34,25 +34,101 @@ async def ping(interaction: discord.Interaction):
     await interaction.followup.send("Pong")
 
 
-@bot.tree.command(name="verify", description="Check imong membership")
-async def verify(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-    url = f"{API}/api/membership/{interaction.user.id}"
-    try:
-        timeout = aiohttp.ClientTimeout(total=5)
-        async with aiohttp.ClientSession(timeout=timeout) as s:
-            async with s.get(url) as r:
-                data = await r.json()
-    except Exception:
-        await interaction.followup.send("API error. Try again later.")
-        return
+async def fetch_membership(uid):
+    timeout = aiohttp.ClientTimeout(total=5)
+    async with aiohttp.ClientSession(timeout=timeout) as s:
+        async with s.get(f"{API}/api/membership/{uid}") as r:
+            return await r.json()
+
+
+def verify_embed(data):
     if data.get("active"):
         e = discord.Embed(title="Membership active", color=0x22C55E)
         e.add_field(name="Plan", value=data.get("plan", "-"))
         e.add_field(name="Expires", value=data.get("expires", "-"))
     else:
         e = discord.Embed(title="No active membership", color=0xEF4444)
-    await interaction.followup.send(embed=e)
+    return e
+
+
+class VerifyView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=120)
+
+    @discord.ui.button(label="Refresh", style=discord.ButtonStyle.primary)
+    async def refresh(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        try:
+            data = await fetch_membership(interaction.user.id)
+        except Exception:
+            await interaction.followup.send("API error.", ephemeral=True)
+            return
+        await interaction.edit_original_response(embed=verify_embed(data), view=self)
+
+
+@bot.tree.command(name="verify", description="Check imong membership")
+async def verify(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    try:
+        data = await fetch_membership(interaction.user.id)
+    except Exception:
+        await interaction.followup.send("API error. Try again later.")
+        return
+    await interaction.followup.send(embed=verify_embed(data), view=VerifyView())
+
+
+PER_PAGE = 3
+
+
+class SearchView(discord.ui.View):
+    def __init__(self, query, items):
+        super().__init__(timeout=120)
+        self.query = query
+        self.items = items
+        self.page = 0
+        self.pages = max(1, (len(items) + PER_PAGE - 1) // PER_PAGE)
+        self.sync()
+
+    def chunk(self):
+        start = self.page * PER_PAGE
+        return start, self.items[start:start + PER_PAGE]
+
+    def sync(self):
+        self.prev_btn.disabled = self.page == 0
+        self.next_btn.disabled = self.page >= self.pages - 1
+        start, part = self.chunk()
+        self.pick.options = [
+            discord.SelectOption(label=str(p["name"])[:100], value=str(start + i))
+            for i, p in enumerate(part)
+        ]
+
+    def embed(self):
+        e = discord.Embed(title=f"Results for: {self.query}", color=0x3B82F6)
+        for p in self.chunk()[1]:
+            stock = "In stock" if p["stock"] > 0 else "Out of stock"
+            e.add_field(name=p["name"], value=f"${p['price']:.2f} - {stock}", inline=False)
+        e.set_footer(text=f"Page {self.page + 1}/{self.pages}")
+        return e
+
+    @discord.ui.button(label="Prev", style=discord.ButtonStyle.secondary)
+    async def prev_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page -= 1
+        self.sync()
+        await interaction.response.edit_message(embed=self.embed(), view=self)
+
+    @discord.ui.button(label="Next", style=discord.ButtonStyle.primary)
+    async def next_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page += 1
+        self.sync()
+        await interaction.response.edit_message(embed=self.embed(), view=self)
+
+    @discord.ui.select(placeholder="Pili og product", options=[discord.SelectOption(label="-", value="0")])
+    async def pick(self, interaction: discord.Interaction, select: discord.ui.Select):
+        p = self.items[int(select.values[0])]
+        e = discord.Embed(title=p["name"], color=0x3B82F6)
+        e.add_field(name="Price", value=f"${p['price']:.2f}")
+        e.add_field(name="Stock", value=str(p["stock"]))
+        await interaction.response.send_message(embed=e, ephemeral=True)
 
 
 @bot.tree.command(name="search", description="Search products")
@@ -71,11 +147,8 @@ async def search(interaction: discord.Interaction, query: str):
     if not items:
         await interaction.followup.send(f"No results for: {query}")
         return
-    e = discord.Embed(title=f"Results for: {query}", color=0x3B82F6)
-    for p in items:
-        stock = "In stock" if p["stock"] > 0 else "Out of stock"
-        e.add_field(name=p["name"], value=f"${p['price']:.2f} - {stock}", inline=False)
-    await interaction.followup.send(embed=e)
+    view = SearchView(query, items)
+    await interaction.followup.send(embed=view.embed(), view=view)
 
 
 bot.run(TOKEN)
