@@ -1,3 +1,9 @@
 .env
 __pycache__/
 *.log
+
+notify.db
+*.bak
+patch_notify.py
+new_notify.py
+fix_ignore.py
