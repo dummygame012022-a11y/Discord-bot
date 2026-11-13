@@ -190,4 +190,66 @@ async def stats(interaction: discord.Interaction):
     await interaction.response.send_message(text, ephemeral=True)
 
 
+import sqlite3
+
+DB = "notify.db"
+
+
+def db_init():
+    with sqlite3.connect(DB) as c:
+        c.execute("CREATE TABLE IF NOT EXISTS notify (user_id INTEGER PRIMARY KEY)")
+
+
+def db_set(uid, on):
+    with sqlite3.connect(DB) as c:
+        if on:
+            c.execute("INSERT OR IGNORE INTO notify VALUES (?)", (uid,))
+        else:
+            c.execute("DELETE FROM notify WHERE user_id=?", (uid,))
+
+
+def db_all():
+    with sqlite3.connect(DB) as c:
+        return [r[0] for r in c.execute("SELECT user_id FROM notify")]
+
+
+db_init()
+
+
+@bot.tree.command(name="notify", description="I-on o i-off ang alerts")
+@app_commands.describe(mode="on o off")
+@app_commands.choices(mode=[
+    app_commands.Choice(name="on", value="on"),
+    app_commands.Choice(name="off", value="off"),
+])
+@app_commands.checks.cooldown(1, 10.0, key=lambda i: i.user.id)
+async def notify(interaction: discord.Interaction,
+                 mode: app_commands.Choice[str]):
+    on = mode.value == "on"
+    db_set(interaction.user.id, on)
+    msg = "Alerts: ON" if on else "Alerts: OFF"
+    await interaction.response.send_message(msg, ephemeral=True)
+
+
+@bot.tree.command(name="notify_test", description="Admin: test alert")
+@app_commands.guild_only()
+@app_commands.default_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
+async def notify_test(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    ok = 0
+    fail = 0
+    for uid in db_all():
+        try:
+            user = await bot.fetch_user(uid)
+            await user.send("Test alert gikan sa bot.")
+            ok += 1
+        except Exception:
+            fail += 1
+    await interaction.followup.send(
+        f"Sent: {ok}, Failed: {fail}", ephemeral=True)
+
+
+
+
 bot.run(TOKEN)

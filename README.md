@@ -7,6 +7,8 @@ Python Discord bot (discord.py, asyncio, aiohttp) that talks to a REST API.
 - /verify: checks paid membership through the API (embed result)
 - /search: searches products through the API (embed result) with Prev/Next buttons and a product dropdown
 - /stats: admin-only bot stats
+- /notify on|off: user-specific alert settings (SQLite)
+- /notify_test: admin-only test alert sent by DM
 
 ## Run
     pip install -r requirements.txt
@@ -21,7 +23,7 @@ mock_api.py is a demo API. In real use, point API_URL to your own web app.
 
 - API key (X-API-Key header) between bot and API, kept in .env
 - Set the same API_KEY in .env for bot.py and mock_api.py
-- 10 second cooldown per user on /verify and /search
+- 10 second cooldown per user on /verify, /search and /notify
 - Admin-only /stats (administrator permission)
 - Global error handler: short message to user, details in log
 
@@ -30,3 +32,4 @@ mock_api.py is a demo API. In real use, point API_URL to your own web app.
 <img src="screenshots/verify.png" width="300">
 <img src="screenshots/search.png" width="300">
 <img src="screenshots/detail.png" width="300">
+<img src="screenshots/notify.png" width="300">
