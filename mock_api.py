@@ -1,6 +1,17 @@
+import os
+from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 
+load_dotenv()
+API_KEY = os.getenv("API_KEY")
 app = Flask(__name__)
+
+
+@app.before_request
+def check_key():
+    k = request.headers.get("X-API-Key")
+    if not API_KEY or k != API_KEY:
+        return jsonify({"error": "unauthorized"}), 401
 
 PRODUCTS = [
     {"name": "Wireless Mouse", "price": 15.99, "stock": 42},

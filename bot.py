@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 API = os.getenv("API_URL", "http://127.0.0.1:5060")
+HEADERS = {"X-API-Key": os.getenv("API_KEY", "")}
 
 
 class Bot(discord.Client):
@@ -36,8 +37,10 @@ async def ping(interaction: discord.Interaction):
 
 async def fetch_membership(uid):
     timeout = aiohttp.ClientTimeout(total=5)
-    async with aiohttp.ClientSession(timeout=timeout) as s:
+    async with aiohttp.ClientSession(timeout=timeout, headers=HEADERS) as s:
         async with s.get(f"{API}/api/membership/{uid}") as r:
+            if r.status == 401:
+                raise RuntimeError("bad api key")
             return await r.json()
 
 
@@ -137,8 +140,10 @@ async def search(interaction: discord.Interaction, query: str):
     await interaction.response.defer()
     try:
         timeout = aiohttp.ClientTimeout(total=5)
-        async with aiohttp.ClientSession(timeout=timeout) as s:
+        async with aiohttp.ClientSession(timeout=timeout, headers=HEADERS) as s:
             async with s.get(f"{API}/api/products", params={"q": query}) as r:
+                if r.status == 401:
+                    raise RuntimeError("bad api key")
                 data = await r.json()
     except Exception:
         await interaction.followup.send("API error. Try again later.")
